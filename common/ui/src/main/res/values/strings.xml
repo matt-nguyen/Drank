@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drank</string>
+
+    <string name="button_add">Add</string>
+    <string name="button_cancel">Cancel</string>
+    <string name="button_add_new">Add New</string>
+
+    <string name="default_select">-Select-</string>
+
+    <string name="label_today">Today</string>
+    <string name="label_style">Style</string>
+    <string name="label_brand">Brand</string>
+    <string name="label_liquor">Liquor</string>
+
+    <string name="hint_enter_brand_name">Enter Brand Name</string>
+
+    <string name="title_add_beer">Add Beer</string>
+    <string name="label_beer">Beer</string>
+    <string name="hint_enter_beer_name">Enter Beer Name</string>
+
+    <string name="title_add_wine">Add Wine</string>
+    <string name="label_wine">Wine</string>
+    <string name="hint_enter_wine_name">Enter Wine Name</string>
+
+    <string name="title_add_cocktail">Add Cocktail</string>
+    <string name="label_cocktail">Cocktail</string>
+    <string name="hint_enter_cocktail_name">Enter Cocktail Name</string>
+
+    <string name="title_add_shot">Add Shot</string>
+    <string name="label_shot">Shot</string>
+    <string name="hint_enter_shot_name">Enter Shot Name</string>
+</resources>

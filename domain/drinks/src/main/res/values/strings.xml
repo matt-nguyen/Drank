@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_data_error_already_exists">This already exists.</string>
+    <string name="local_data_error_database_error">Database operation failed.</string>
+    <string name="local_data_error_invalid_input">Input is invalid.</string>
+    <string name="local_data_error_unknown">Unknown error has occurred.</string>
+</resources>
