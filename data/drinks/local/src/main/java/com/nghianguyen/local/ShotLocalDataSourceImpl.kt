@@ -6,8 +6,8 @@ import com.github.michaelbull.result.runCatching
 import com.nghianguyen.drinks.ShotLocalDataSource
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.LocalDataError
-import com.nghianguyen.drinks.model.ext.mapLocalDataError
 import com.nghianguyen.local.db.daos.ShotDao
+import com.nghianguyen.local.ext.mapLocalDataError
 import com.nghianguyen.local.model.shot.ShotEntity
 import com.nghianguyen.local.model.shot.toDomain
 import kotlinx.coroutines.flow.Flow

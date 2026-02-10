@@ -2,6 +2,10 @@ package com.nghianguyen.consume.ui
 
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
+import com.nghianguyen.consume.ui.beer.ConsumeBeerDialog
+import com.nghianguyen.consume.ui.cocktail.ConsumeCocktailDialog
+import com.nghianguyen.consume.ui.shot.ConsumeShotDialog
+import com.nghianguyen.consume.ui.wine.ConsumeWineDialog
 import com.nghianguyen.consume.viewmodel.ConsumeBeerViewModel
 import com.nghianguyen.consume.viewmodel.ConsumeCocktailViewModel
 import com.nghianguyen.consume.viewmodel.ConsumeShotViewModel
@@ -17,10 +21,18 @@ fun ConsumeDrinkDialog(
     dismissDrinkDialog: () -> Unit
 ) {
     when (viewModel) {
-        is ConsumeBeerViewModel -> { ConsumeBeerDialog(viewModel, dismissDrinkDialog) }
-        is ConsumeWineViewModel -> { ConsumeWineDialog(viewModel, dismissDrinkDialog) }
-        is ConsumeCocktailViewModel -> { ConsumeCocktailDialog(viewModel, dismissDrinkDialog) }
-        is ConsumeShotViewModel -> { ConsumeShotDialog(viewModel, dismissDrinkDialog) }
+        is ConsumeBeerViewModel -> {
+            ConsumeBeerDialog(viewModel, dismissDrinkDialog)
+        }
+        is ConsumeWineViewModel -> {
+            ConsumeWineDialog(viewModel, dismissDrinkDialog)
+        }
+        is ConsumeCocktailViewModel -> {
+            ConsumeCocktailDialog(viewModel, dismissDrinkDialog)
+        }
+        is ConsumeShotViewModel -> {
+            ConsumeShotDialog(viewModel, dismissDrinkDialog)
+        }
         else -> {}
     }
 }

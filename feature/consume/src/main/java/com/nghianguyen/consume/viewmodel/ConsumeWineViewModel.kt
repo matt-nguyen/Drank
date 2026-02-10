@@ -2,10 +2,13 @@ package com.nghianguyen.consume.viewmodel
 
 import android.util.Log
 import com.github.michaelbull.result.Ok
-import com.nghianguyen.base.ResourcesHelper
+import com.nghianguyen.base.toUiText
+import com.nghianguyen.consume.ui.AddBrandDialogState
+import com.nghianguyen.consume.ui.wine.AddWineDialogState
+import com.nghianguyen.consume.ui.wine.WineAddDialogType
 import com.nghianguyen.consume.viewmodel.wine.ConsumeWineAction
+import com.nghianguyen.consume.viewmodel.wine.ConsumeWineDialogState
 import com.nghianguyen.consume.viewmodel.wine.ConsumeWineEvent
-import com.nghianguyen.consume.viewmodel.wine.ConsumeWineState
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.wine.WineBrand
 import com.nghianguyen.drinks.model.wine.WineStyle
@@ -31,18 +34,18 @@ class ConsumeWineViewModel @Inject constructor(
     private val getWinesByBrandUseCase: GetWinesByBrandUseCase,
     private val addWineBrandUseCase: AddWineBrandUseCase,
     private val addWineUseCase: AddWineUseCase,
-    private val resourceHelper: ResourcesHelper,
     addConsumedDrinkUseCase: AddConsumedDrinkUseCase
-) : ConsumeDrinkViewModel<ConsumeWineState, ConsumeWineAction, ConsumeWineEvent>(
+) : ConsumeDrinkViewModel<ConsumeWineDialogState, ConsumeWineAction, ConsumeWineEvent>(
     addConsumedDrinkUseCase
 ) {
-    override fun buildInitialState() = ConsumeWineState(
+    override fun buildInitialState() = ConsumeWineDialogState(
         wineStyles = emptyList(),
         wineBrands = emptyList(),
         wines = emptyList(),
         selectedStyle = null,
         selectedBrand = null,
         selectedWine = null,
+        addDialogState = null,
         errorMsg = null
     )
 
@@ -50,23 +53,21 @@ class ConsumeWineViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onStart() {
         launch {
-            handleResult(
-                wineRepository.getWineStyles(),
-                { wineStyles ->
+            wineRepository.getWineStyles().onResult(
+                onSuccess = { wineStyles ->
                     updateState { copy(wineStyles = wineStyles) }
                 },
-                { }
+                onFailure = {}
             )
         }
         launch {
             wineRepository.getWineBrands()
                 .collect { wineBrandsResult ->
-                    handleResult(
-                        wineBrandsResult,
-                        { wineBrands ->
+                    wineBrandsResult.onResult(
+                        onSuccess = { wineBrands ->
                             updateState { copy(wineBrands = wineBrands) }
                         },
-                        { }
+                        onFailure = {}
                     )
                 }
         }
@@ -74,24 +75,24 @@ class ConsumeWineViewModel @Inject constructor(
         launch {
             uiState.map { it.selectedBrand }
                 .distinctUntilChanged()
-                .flatMapLatest { selectedWineBrand ->
-                    if (selectedWineBrand != null) {
-                        getWinesByBrandUseCase(GetWinesByBrandRequest(selectedWineBrand))
-                    } else {
-                        flowOf(Ok(emptyList()))
-                    }
+                .flatMapLatest { brand ->
+                    brand?.let {
+                        getWinesByBrandUseCase(GetWinesByBrandRequest(it))
+                    } ?:flowOf(Ok(emptyList()))
                 }.collect { winesByBrandResult ->
-                    handleResult(
-                        winesByBrandResult,
-                        { wines ->
+                    winesByBrandResult.onResult(
+                        onSuccess = { wines ->
                             val selectedWine = uiState.value.selectedWine
                             val newSelectedWine =
+                                selectedWine?.takeIf { selected ->
+                                    wines.any { selected.wineId == it.wineId }
+                                }
                                 if (wines.map { it.wineId }
                                         .contains(selectedWine?.wineId)) selectedWine
                                 else null
                             updateState { copy(wines = wines, selectedWine = newSelectedWine) }
                         },
-                        { }
+                        onFailure = {}
                     )
                 }
         }
@@ -99,100 +100,155 @@ class ConsumeWineViewModel @Inject constructor(
 
     override fun handleAction(action: ConsumeWineAction) {
         Log.d("ConsumeWineViewModel", "handleAction: $action")
-        launch {
-            when (action) {
-                is ConsumeWineAction.WineBrandSelected -> {
-                    updateState { copy(selectedBrand = action.selectedBrand) }
-                }
-
-                is ConsumeWineAction.WineStyleSelected -> {
-                    updateState { copy(selectedStyle = action.selectedStyle) }
-                }
-
-                is ConsumeWineAction.WineSelected -> {
-                    updateState {
-                        copy(
-                            selectedWine = action.selectedWine,
-                            selectedStyle = action.selectedWine?.style
-                        )
-                    }
-                }
-
-                is ConsumeWineAction.AddWineBrand -> {
-                    addWineBrand(action.brandName)
-                }
-
-                is ConsumeWineAction.AddWine -> {
-                    addWine(action.name, action.brand, action.style)
-                }
-
-                ConsumeWineAction.SubmitConsumedWine -> {
-                    submitConsumedWine()
-                }
+        when (action) {
+            is ConsumeWineAction.BrandSelected -> {
+                selectBrand(action.selectedBrand)
+            }
+            is ConsumeWineAction.StyleSelected -> {
+                selectStyle(action.selectedStyle)
+            }
+            is ConsumeWineAction.WineSelected -> {
+                selectWine(action.selectedWine)
+            }
+            ConsumeWineAction.OpenAddBrandDialog -> {
+                openAddBrandDialog()
+            }
+            ConsumeWineAction.OpenAddWineDialog -> {
+                openAddWineDialog()
+            }
+            ConsumeWineAction.DismissAddDialog -> {
+                updateState { copy(addDialogState = null) }
+            }
+            is ConsumeWineAction.AddBrand -> {
+                addWineBrand(action.brandName)
+            }
+            is ConsumeWineAction.AddWine -> {
+                addWine(action.name, action.brand, action.style)
+            }
+            ConsumeWineAction.SubmitConsumedWine -> {
+                submitConsumedWine()
             }
         }
     }
 
-    private suspend fun addWineBrand(name: String) {
-        handleResult(
-            addWineBrandUseCase(AddBrandRequest(name)),
-            { wineBrand ->
-                updateState {
-                    copy(
-                        selectedBrand = wineBrand,
-                        selectedWine = null,
-                        wines = emptyList()
-                    )
-                }
-                sendEvent(ConsumeWineEvent.AddWineBrandSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeWineEvent.AddWineBrandError(errorMsg))
-            }
-        )
+    private fun selectStyle(style: WineStyle?) {
+        updateState { copy(selectedStyle = style, selectedWine = null) }
     }
 
-    private suspend fun addWine(name: String, brand: WineBrand, style: WineStyle) {
-        handleResult(
-            addWineUseCase(AddWineRequest(name, brand, style)),
-            { wineId ->
-                val newWine = Drink.Wine(
-                    wineId = wineId.toInt(),
-                    name = name,
-                    style = style,
-                    brand = brand,
-                    wineColor = style.color
-                )
-                updateState {
-                    copy(
-                        selectedStyle = style,
-                        selectedBrand = brand,
-                        selectedWine = newWine
-                    )
-                }
-                sendEvent(ConsumeWineEvent.AddWineSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeWineEvent.AddWineError(errorMsg))
-            }
-        )
+    private fun selectBrand(brand: WineBrand?) {
+        updateState { copy(selectedBrand = brand, selectedWine = null) }
     }
 
-    private suspend fun submitConsumedWine() {
-        uiState.value.selectedWine?.let {
-            handleResult(
-                addConsumedDrink(it),
-                {
-                    sendEvent(ConsumeWineEvent.SubmitConsumedWineSuccess)
+    private fun selectWine(wine: Drink.Wine?) {
+        updateState {
+            copy(
+                selectedWine = wine,
+                selectedStyle = wine?.style
+            )
+        }
+    }
+
+    private fun openAddWineDialog() {
+        val uiState = uiState.value
+        val addWineDialogState = AddWineDialogState(
+            wineStyles = uiState.wineStyles,
+            wineBrands = uiState.wineBrands
+        )
+        updateState {
+            copy(addDialogState = WineAddDialogType.AddWine(addWineDialogState))
+        }
+    }
+
+    private fun openAddBrandDialog() {
+        updateState {
+            copy(addDialogState = WineAddDialogType.AddBrand(AddBrandDialogState()))
+        }
+    }
+
+    private fun addWineBrand(name: String) {
+        launch {
+            addWineBrandUseCase(AddBrandRequest(name)).onResult(
+                onSuccess = { wineBrand ->
+                    updateState {
+                        copy(
+                            selectedBrand = wineBrand,
+                            selectedWine = null,
+                            wines = emptyList(),
+                            addDialogState = null
+                        )
+                    }
                 },
-                { error ->
-                    val errorMsg = resourceHelper.getString(error.stringRes)
-                    updateState { copy(errorMsg = errorMsg) }
-                    sendEvent(ConsumeWineEvent.SubmitConsumedWineError(errorMsg))
+                onFailure = { error ->
+                    val addDialogState =
+                        when (val currentAddDialogState = uiState.value.addDialogState) {
+                            is WineAddDialogType.AddBrand -> {
+                                currentAddDialogState.copy(
+                                    addDialogState = currentAddDialogState.addDialogState.copy(
+                                        errorMsg = error.toUiText()
+                                    )
+                                )
+                            }
+                            else -> currentAddDialogState
+                        }
+
+                    updateState { copy(addDialogState = addDialogState) }
                 }
             )
+        }
+    }
+
+    private fun addWine(name: String, brand: WineBrand, style: WineStyle) {
+        launch {
+            addWineUseCase(AddWineRequest(name, brand, style))
+                .onResult(
+                    onSuccess = { wineId ->
+                        val newWine = Drink.Wine(
+                            wineId = wineId.toInt(),
+                            name = name,
+                            style = style,
+                            brand = brand,
+                            wineColor = style.color
+                        )
+                        updateState {
+                            copy(
+                                selectedStyle = style,
+                                selectedBrand = brand,
+                                selectedWine = newWine,
+                                addDialogState = null
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        val addDialogState =
+                            when (val currentAddDialogState = uiState.value.addDialogState) {
+                                is WineAddDialogType.AddWine -> {
+                                    currentAddDialogState.copy(
+                                        addDialogState = currentAddDialogState.addDialogState.copy(
+                                            errorMsg = error.toUiText()
+                                        )
+                                    )
+                                }
+                                else -> currentAddDialogState
+                            }
+
+                        updateState { copy(addDialogState = addDialogState) }
+                    }
+                )
+        }
+    }
+
+    private fun submitConsumedWine() {
+        launch {
+            uiState.value.selectedWine?.let {
+                addConsumedDrink(it).onResult(
+                    onSuccess = {
+                        sendEvent(ConsumeWineEvent.SubmitConsumedWineSuccess)
+                    },
+                    onFailure = { error ->
+                        updateState { copy(errorMsg = error.toUiText()) }
+                    }
+                )
+            }
         }
     }
 

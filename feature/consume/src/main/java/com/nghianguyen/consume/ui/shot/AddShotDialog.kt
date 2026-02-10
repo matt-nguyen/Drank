@@ -1,4 +1,4 @@
-package com.nghianguyen.consume.ui
+package com.nghianguyen.consume.ui.shot
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -13,21 +13,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
 import com.nghianguyen.common.ui.R
+import com.nghianguyen.consume.ui.ExposedDropdownMenuField
 import com.nghianguyen.drinks.model.Liquor
+import com.nghianguyen.text.toStringText
 
 /**
- * Dialog for the user to add a new [Drink.Cocktail].
+ * Dialog for the user to add a new [Drink.Shot].
  */
 @Composable
-fun AddCocktailDialog(
-    liquors: List<Liquor>,
-    submitNewCocktail: (String, Liquor) -> Unit,
-    onDismissRequest: () -> Unit,
-    errorMsg: String? = null
+fun AddShotDialog(
+    state: AddShotDialogState,
+    submitNewShot: (String, Liquor) -> Unit,
+    onDismissRequest: () -> Unit
 ) {
     val defaultText = stringResource(R.string.default_select)
 
@@ -39,7 +41,7 @@ fun AddCocktailDialog(
         )
     }
 
-    var cocktailNameTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var shotNameTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
 
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
@@ -48,7 +50,7 @@ fun AddCocktailDialog(
         ) {
             Column {
                 ExposedDropdownMenuField(
-                    menuItems = liquors,
+                    menuItems = state.liquors,
                     text = selectedLiquorText,
                     label = { Text(stringResource(R.string.label_liquor)) },
                     expanded = liquorExpanded,
@@ -61,17 +63,17 @@ fun AddCocktailDialog(
                 )
 
                 OutlinedTextField(
-                    value = cocktailNameTextFieldValue,
-                    onValueChange = { cocktailNameTextFieldValue = it },
+                    value = shotNameTextFieldValue,
+                    onValueChange = { shotNameTextFieldValue = it },
                     label = {
                         Text(
-                            text = stringResource(R.string.hint_enter_cocktail_name),
+                            text = stringResource(R.string.hint_enter_shot_name),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 )
-                errorMsg?.let {
+                state.errorMsg?.toStringText(LocalContext.current)?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,
@@ -81,12 +83,12 @@ fun AddCocktailDialog(
 
                 TextButton(
                     onClick = {
-                        submitNewCocktail(
-                            cocktailNameTextFieldValue.text,
+                        submitNewShot(
+                            shotNameTextFieldValue.text,
                             liquorSelected!!
                         )
                     },
-                    enabled = liquorSelected != null && cocktailNameTextFieldValue.text.trim()
+                    enabled = liquorSelected != null && shotNameTextFieldValue.text.trim()
                         .isNotEmpty()
                 ) {
                     Text(

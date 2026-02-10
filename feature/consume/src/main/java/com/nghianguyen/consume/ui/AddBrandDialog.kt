@@ -17,11 +17,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
 import com.nghianguyen.common.ui.R
+import com.nghianguyen.text.toStringText
 import kotlinx.coroutines.flow.first
 
 /**
@@ -29,9 +31,9 @@ import kotlinx.coroutines.flow.first
  */
 @Composable
 fun AddBrandDialog(
+    state: AddBrandDialogState,
     submitNewBrand: (String) -> Unit,
     onDismissRequest: () -> Unit,
-    errorMsg: String? = null
 ) {
 
     val focusRequester = remember { FocusRequester() }
@@ -57,7 +59,7 @@ fun AddBrandDialog(
                     },
                     modifier = Modifier.focusRequester(focusRequester)
                 )
-                errorMsg?.let {
+                state.errorMsg?.toStringText(LocalContext.current)?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,

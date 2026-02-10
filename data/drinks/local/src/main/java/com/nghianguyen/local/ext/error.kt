@@ -1,4 +1,4 @@
-package com.nghianguyen.drinks.model.ext
+package com.nghianguyen.local.ext
 
 import android.database.SQLException
 import android.database.sqlite.SQLiteConstraintException
@@ -8,6 +8,7 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.asOk
 import com.nghianguyen.drinks.model.LocalDataError
 import kotlinx.coroutines.CancellationException
+
 
 fun <V> Result<V, Throwable>.mapLocalDataError(): Result<V, LocalDataError> {
     return when {
@@ -22,7 +23,7 @@ fun <V> Result<V, Throwable>.mapLocalDataError(): Result<V, LocalDataError> {
                     is SQLiteConstraintException -> LocalDataError.ALREADY_EXISTS
                     is SQLException -> LocalDataError.DATABASE_ERROR
                     is IllegalArgumentException -> LocalDataError.INVALID_INPUT
-                    else -> LocalDataError.UNKNOWN
+                    else -> LocalDataError.UNKNOWN // TODO should we return Error.UNKNOWN here?
                 }
             Err(dataError)
         }

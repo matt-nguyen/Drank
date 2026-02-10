@@ -8,8 +8,8 @@ import com.nghianguyen.drinks.model.LocalDataError
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.beer.BeerBrand
 import com.nghianguyen.drinks.model.beer.BeerStyle
-import com.nghianguyen.drinks.model.ext.mapLocalDataError
 import com.nghianguyen.local.db.daos.BeerDao
+import com.nghianguyen.local.ext.mapLocalDataError
 import com.nghianguyen.local.model.beer.BeerBrandEntity
 import com.nghianguyen.local.model.beer.BeerEntity
 import com.nghianguyen.local.model.beer.toDomain

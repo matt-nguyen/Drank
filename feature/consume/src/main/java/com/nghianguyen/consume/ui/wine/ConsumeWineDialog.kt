@@ -1,4 +1,4 @@
-package com.nghianguyen.consume.ui
+package com.nghianguyen.consume.ui.wine
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -13,25 +13,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nghianguyen.CollectFlowEffect
 import com.nghianguyen.common.ui.R
+import com.nghianguyen.consume.ui.AddBrandDialog
+import com.nghianguyen.consume.ui.ExposedDropdownMenuField
+
 import com.nghianguyen.consume.viewmodel.ConsumeWineViewModel
 import com.nghianguyen.consume.viewmodel.wine.ConsumeWineAction
+import com.nghianguyen.consume.viewmodel.wine.ConsumeWineDialogState
 import com.nghianguyen.consume.viewmodel.wine.ConsumeWineEvent
-import com.nghianguyen.consume.viewmodel.wine.ConsumeWineState
-import com.nghianguyen.drinks.model.Drink
-import com.nghianguyen.drinks.model.wine.WineBrand
-import com.nghianguyen.drinks.model.wine.WineStyle
+import com.nghianguyen.text.toStringText
+import com.nghianguyen.theme.LocalSpacing
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
@@ -46,22 +48,9 @@ fun ConsumeWineDialog(
     val uiEvent = viewModel.uiEvent
 
     ConsumeWineDialog(
-        consumeWineState = uiState,
-        consumeWineEvent = uiEvent,
-        onWineStyleSelected = { viewModel.handleAction(ConsumeWineAction.WineStyleSelected(it)) },
-        onWineBrandSelected = { viewModel.handleAction(ConsumeWineAction.WineBrandSelected(it)) },
-        onWineSelected = { viewModel.handleAction(ConsumeWineAction.WineSelected(it)) },
-        onSubmitNewWineBrand = { viewModel.handleAction(ConsumeWineAction.AddWineBrand(it)) },
-        onSubmitNewWine = { w, wr, ws ->
-            viewModel.handleAction(
-                ConsumeWineAction.AddWine(
-                    w,
-                    wr,
-                    ws
-                )
-            )
-        },
-        onSubmitConsumedWine = { viewModel.handleAction(ConsumeWineAction.SubmitConsumedWine) },
+        state = uiState,
+        event = uiEvent,
+        onAction = { viewModel.handleAction(it) },
         dismissDialog = dismissDrinkDialog
     )
 }
@@ -69,50 +58,15 @@ fun ConsumeWineDialog(
 @Composable
 fun ConsumeWineDialog(
     modifier: Modifier = Modifier,
-    consumeWineState: ConsumeWineState,
-    consumeWineEvent: SharedFlow<ConsumeWineEvent>,
-    onWineStyleSelected: (WineStyle?) -> Unit,
-    onWineBrandSelected: (WineBrand?) -> Unit,
-    onWineSelected: (Drink.Wine?) -> Unit,
-    onSubmitNewWineBrand: (String) -> Unit,
-    onSubmitNewWine: (String, WineBrand, WineStyle) -> Unit,
-    onSubmitConsumedWine: () -> Unit,
+    state: ConsumeWineDialogState,
+    event: SharedFlow<ConsumeWineEvent>,
+    onAction: (ConsumeWineAction) -> Unit,
     dismissDialog: () -> Unit
 ) {
-    var addBrandDialog by remember { mutableStateOf(false) }
-    var addWineDialog by remember { mutableStateOf(false) }
-
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-    var addDialogErrorMsg by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        consumeWineEvent.collect {
-            when (it) {
-                is ConsumeWineEvent.AddWineBrandError -> {
-                    addDialogErrorMsg = it.errorMsg
-                }
-
-                ConsumeWineEvent.AddWineBrandSuccess -> {
-                    addBrandDialog = false
-                    addDialogErrorMsg = null
-                }
-
-                is ConsumeWineEvent.AddWineError -> {
-                    addDialogErrorMsg = it.errorMsg
-                }
-
-                ConsumeWineEvent.AddWineSuccess -> {
-                    addWineDialog = false
-                    addDialogErrorMsg = null
-                }
-
-                is ConsumeWineEvent.SubmitConsumedWineError -> {
-                    errorMsg = it.errorMsg
-                }
-
-                ConsumeWineEvent.SubmitConsumedWineSuccess -> {
-                    dismissDialog()
-                }
+    CollectFlowEffect(event) {
+        when (it) {
+            ConsumeWineEvent.SubmitConsumedWineSuccess -> {
+                dismissDialog()
             }
         }
     }
@@ -120,24 +74,29 @@ fun ConsumeWineDialog(
     val defaultText = stringResource(R.string.default_select)
 
     var wineStyleExpanded by remember { mutableStateOf(false) }
-    var selectedWineStyleText by remember(consumeWineState.selectedStyle) {
+    var selectedWineStyleText by remember(state.selectedStyle) {
         mutableStateOf(
-            consumeWineState.selectedStyle?.name ?: defaultText
+            state.selectedStyle?.name ?: defaultText
         )
     }
 
     var wineBrandExpanded by remember { mutableStateOf(false) }
-    var selectedWineBrandText by remember(consumeWineState.selectedBrand) {
+    var selectedWineBrandText by remember(state.selectedBrand) {
         mutableStateOf(
-            consumeWineState.selectedBrand?.name ?: defaultText
+            state.selectedBrand?.name ?: defaultText
         )
     }
 
     var wineExpanded by remember { mutableStateOf(false) }
-    var selectedWineText by remember(consumeWineState.selectedWine) {
+    var selectedWineText by remember(state.selectedWine) {
         mutableStateOf(
-            consumeWineState.selectedWine?.name ?: defaultText
+            state.selectedWine?.name ?: defaultText
         )
+    }
+
+    val context = LocalContext.current
+    var errorMsg by remember(state.errorMsg) {
+        mutableStateOf(state.errorMsg?.toStringText(context))
     }
 
     Dialog(
@@ -149,17 +108,17 @@ fun ConsumeWineDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(LocalSpacing.current.medium)
             ) {
                 Text(
                     text = stringResource(R.string.title_add_wine),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(LocalSpacing.current.large))
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeWineState.wineStyles,
+                    menuItems = state.wineStyles,
                     text = selectedWineStyleText,
                     label = { Text(stringResource(R.string.label_style)) },
                     expanded = wineStyleExpanded,
@@ -167,12 +126,12 @@ fun ConsumeWineDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         wineStyleExpanded = false
-                        onWineStyleSelected(it)
+                        onAction(ConsumeWineAction.StyleSelected(it))
                     }
                 )
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeWineState.wineBrands,
+                    menuItems = state.wineBrands,
                     text = selectedWineBrandText,
                     label = { Text(stringResource(R.string.label_brand)) },
                     expanded = wineBrandExpanded,
@@ -180,18 +139,18 @@ fun ConsumeWineDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         wineBrandExpanded = false
-                        onWineBrandSelected(it)
+                        onAction(ConsumeWineAction.BrandSelected(it))
                     }
                 )
 
                 TextButton(
-                    onClick = { addBrandDialog = true }
+                    onClick = { onAction(ConsumeWineAction.OpenAddBrandDialog) }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add_24px),
                         contentDescription = null
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(LocalSpacing.current.small))
                     Text(
                         text = stringResource(R.string.button_add_new),
                         style = MaterialTheme.typography.labelSmall,
@@ -200,7 +159,7 @@ fun ConsumeWineDialog(
                 }
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeWineState.wines,
+                    menuItems = state.wines,
                     text = selectedWineText,
                     label = { Text(stringResource(R.string.label_wine)) },
                     expanded = wineExpanded,
@@ -208,18 +167,18 @@ fun ConsumeWineDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         wineExpanded = false
-                        onWineSelected(it)
+                        onAction(ConsumeWineAction.WineSelected(it))
                     }
                 )
 
                 TextButton(
-                    onClick = { addWineDialog = true }
+                    onClick = { onAction(ConsumeWineAction.OpenAddWineDialog) }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add_24px),
                         contentDescription = null
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(LocalSpacing.current.small))
                     Text(
                         text = stringResource(R.string.button_add_new),
                         style = MaterialTheme.typography.labelSmall,
@@ -243,11 +202,11 @@ fun ConsumeWineDialog(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(LocalSpacing.current.medium))
 
                     TextButton(
-                        onClick = onSubmitConsumedWine,
-                        enabled = consumeWineState.selectedWine != null
+                        onClick = { onAction(ConsumeWineAction.SubmitConsumedWine) },
+                        enabled = state.selectedWine != null
                     ) {
                         Text(
                             text = stringResource(R.string.button_add),
@@ -260,28 +219,27 @@ fun ConsumeWineDialog(
             }
         }
 
-        if (addBrandDialog) {
-            AddBrandDialog(
-                submitNewBrand = onSubmitNewWineBrand,
-                onDismissRequest = {
-                    addBrandDialog = false
-                    addDialogErrorMsg = null
-                },
-                errorMsg = addDialogErrorMsg
-            )
-        }
-
-        if (addWineDialog) {
-            AddWineDialog(
-                wineStyles = consumeWineState.wineStyles,
-                wineBrands = consumeWineState.wineBrands,
-                submitNewWine = onSubmitNewWine,
-                onDismissRequest = {
-                    addWineDialog = false
-                    addDialogErrorMsg = null
-                },
-                errorMsg = addDialogErrorMsg
-            )
+        val addDialog = state.addDialogState
+        when (addDialog) {
+            is WineAddDialogType.AddBrand -> {
+                AddBrandDialog(
+                    state = addDialog.addDialogState,
+                    submitNewBrand = { onAction(ConsumeWineAction.AddBrand(it)) },
+                    onDismissRequest = { onAction(ConsumeWineAction.DismissAddDialog) }
+                )
+            }
+            is WineAddDialogType.AddWine -> {
+                AddWineDialog(
+                    state = addDialog.addDialogState,
+                    submitNewWine = { s, wb, ws ->
+                        onAction(
+                            ConsumeWineAction.AddWine(s, wb, ws)
+                        )
+                    },
+                    onDismissRequest = { onAction(ConsumeWineAction.DismissAddDialog) }
+                )
+            }
+            null -> {}
         }
     }
 }

@@ -35,7 +35,8 @@ android {
 }
 
 dependencies {
-
+    implementation(project(":domain:drinks"))
+    implementation(project(":common:ui"))
     implementation(libs.kotlin.result)
 
     implementation(libs.hilt.android)

@@ -8,8 +8,8 @@ import com.github.michaelbull.result.runCatching
 import com.nghianguyen.drinks.ConsumedDrinksLocalDataSource
 import com.nghianguyen.drinks.model.ConsumedDrink
 import com.nghianguyen.drinks.model.LocalDataError
-import com.nghianguyen.drinks.model.ext.mapLocalDataError
 import com.nghianguyen.local.db.daos.ConsumedDrinkDao
+import com.nghianguyen.local.ext.mapLocalDataError
 import com.nghianguyen.local.model.ConsumedDrinkEntity
 import com.nghianguyen.local.model.toDomain
 import kotlinx.coroutines.flow.Flow
