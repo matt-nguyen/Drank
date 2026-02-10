@@ -2,10 +2,13 @@ package com.nghianguyen.consume.viewmodel
 
 import android.util.Log
 import com.github.michaelbull.result.Ok
-import com.nghianguyen.base.ResourcesHelper
+import com.nghianguyen.base.toUiText
+import com.nghianguyen.consume.ui.AddBrandDialogState
+import com.nghianguyen.consume.ui.beer.AddBeerDialogState
+import com.nghianguyen.consume.ui.beer.BeerAddDialogType
 import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerAction
 import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerEvent
-import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerState
+import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerDialogState
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.beer.BeerBrand
 import com.nghianguyen.drinks.model.beer.BeerStyle
@@ -31,38 +34,37 @@ class ConsumeBeerViewModel @Inject constructor(
     private val getBeersByBrandUseCase: GetBeersByBrandUseCase,
     private val addBeerBrandUseCase: AddBeerBrandUseCase,
     private val addBeerUseCase: AddBeerUseCase,
-    private val resourceHelper: ResourcesHelper,
+//    private val resourceHelper: ResourcesHelper,
     addConsumedDrinkUseCase: AddConsumedDrinkUseCase
-) : ConsumeDrinkViewModel<ConsumeBeerState, ConsumeBeerAction, ConsumeBeerEvent>(
+) : ConsumeDrinkViewModel<ConsumeBeerDialogState, ConsumeBeerAction, ConsumeBeerEvent>(
     addConsumedDrinkUseCase
 ) {
-    override fun buildInitialState() = ConsumeBeerState(
+    override fun buildInitialState() = ConsumeBeerDialogState(
         beerStyles = emptyList(),
         beerBrands = emptyList(),
         beers = emptyList(),
         selectedStyle = null,
         selectedBrand = null,
         selectedBeer = null,
+        addDialogState = null,
         errorMsg = null
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onStart() {
         launch {
-            handleResult(
-                beerRepository.getBeerStyles(),
-                { beerStyles -> updateState { copy(beerStyles = beerStyles) } },
-                {}
+            beerRepository.getBeerStyles().onResult(
+                onSuccess = { beerStyles -> updateState { copy(beerStyles = beerStyles) } },
+                onFailure = {}
             )
         }
 
         launch {
             beerRepository.getBeerBrands()
                 .collect { beerBrandsResult ->
-                    handleResult(
-                        beerBrandsResult,
-                        { beerBrands -> updateState { copy(beerBrands = beerBrands) } },
-                        {}
+                    beerBrandsResult.onResult(
+                        onSuccess = { beerBrands -> updateState { copy(beerBrands = beerBrands) } },
+                        onFailure = {}
                     )
                 }
         }
@@ -70,24 +72,21 @@ class ConsumeBeerViewModel @Inject constructor(
         launch {
             uiState.map { it.selectedBrand }
                 .distinctUntilChanged()
-                .flatMapLatest { selectedBeerBrand ->
-                    if (selectedBeerBrand != null) {
-                        getBeersByBrandUseCase(GetBeersByBrandRequest(selectedBeerBrand))
-                    } else {
-                        flowOf(Ok(emptyList()))
-                    }
+                .flatMapLatest { brand ->
+                    brand?.let {
+                        getBeersByBrandUseCase(GetBeersByBrandRequest(it))
+                    } ?: flowOf(Ok(emptyList()))
                 }.collect { beersByBrandResult ->
-                    handleResult(
-                        beersByBrandResult,
-                        { beers ->
-                            val currentSelectedBeer = uiState.value.selectedBeer
+                    beersByBrandResult.onResult(
+                        onSuccess = { beers ->
+                            val selectedBeer = uiState.value.selectedBeer
                             val newSelectedBeer =
-                                if (beers.map { it.beerId }
-                                        .contains(currentSelectedBeer?.beerId)) currentSelectedBeer
-                                else null
+                                selectedBeer?.takeIf { selected ->
+                                    beers.any { selected.beerId == it.beerId}
+                                }
                             updateState { copy(beers = beers, selectedBeer = newSelectedBeer) }
                         },
-                        { }
+                        onFailure = {}
                     )
                 }
         }
@@ -95,98 +94,154 @@ class ConsumeBeerViewModel @Inject constructor(
 
     override fun handleAction(action: ConsumeBeerAction) {
         Log.d("ConsumeBeerViewModel", "handleAction: $action")
-        launch {
-            when (action) {
-                is ConsumeBeerAction.BeerStyleSelected -> {
-                    updateState {
-                        copy(selectedStyle = action.selectedStyle, selectedBeer = null)
-                    }
-                }
-                is ConsumeBeerAction.BeerBrandSelected -> {
-                    updateState { copy(selectedBrand = action.selectedBrand) }
-                }
-                is ConsumeBeerAction.BeerSelected -> {
-                    updateState {
-                        copy(
-                            selectedBeer = action.selectedBeer,
-                            selectedStyle = action.selectedBeer?.style
-                        )
-                    }
-                }
-                is ConsumeBeerAction.AddBeerBrand -> {
-                    addBeerBrand(action.brandName)
-                }
-                is ConsumeBeerAction.AddBeer -> {
-                    addBeer(action.name, action.beerBrand, action.beerStyle)
-                }
-                is ConsumeBeerAction.SubmitConsumedBeer -> {
-                    submitConsumedBeer()
-                }
+        when (action) {
+            is ConsumeBeerAction.StyleSelected -> {
+                selectStyle(action.selectedStyle)
+            }
+            is ConsumeBeerAction.BrandSelected -> {
+                selectBrand(action.selectedBrand)
+            }
+            is ConsumeBeerAction.BeerSelected -> {
+                selectBeer(action.selectedBeer)
+            }
+            ConsumeBeerAction.OpenAddBeerDialog -> {
+                openAddBeerDialog()
+            }
+            is ConsumeBeerAction.OpenAddBrandDialog ->  {
+                openAddBrandDialog()
+            }
+            is ConsumeBeerAction.DismissAddDialog -> {
+                updateState { copy(addDialogState = null) }
+            }
+            is ConsumeBeerAction.AddBrand -> {
+                addBeerBrand(action.brandName)
+            }
+            is ConsumeBeerAction.AddBeer -> {
+                addBeer(action.name, action.beerBrand, action.beerStyle)
+            }
+            is ConsumeBeerAction.SubmitConsumedBeer -> {
+                submitConsumedBeer()
             }
         }
     }
 
-    private suspend fun addBeerBrand(name: String) {
-        handleResult(
-            addBeerBrandUseCase(AddBrandRequest(name)),
-            { beerBrand ->
-                updateState {
-                    copy(
-                        selectedBrand = beerBrand,
-                        selectedBeer = null,
-                        beers = emptyList()
-                    )
-                }
-                sendEvent(ConsumeBeerEvent.AddBeerBrandSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeBeerEvent.AddBeerBrandError(errorMsg))
-            }
-        )
+    private fun selectStyle(style: BeerStyle?) {
+        updateState { copy(selectedStyle = style, selectedBeer = null) }
     }
 
-    private suspend fun addBeer(name: String, brand: BeerBrand, style: BeerStyle) {
-        val addBeerRequest =
-            AddBeerRequest(name, brand, style)
-        handleResult(
-            addBeerUseCase(addBeerRequest),
-            { beerId ->
-                val newBeer = Drink.Beer(
-                    beerId = beerId.toInt(),
-                    style = style,
-                    brand = brand,
-                    name = name
-                )
-                updateState {
-                    copy(
-                        selectedStyle = style,
-                        selectedBrand = brand,
-                        selectedBeer = newBeer
-                    )
-                }
-                sendEvent(ConsumeBeerEvent.AddBeerSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeBeerEvent.AddBeerError(errorMsg))
-            }
-        )
+    private fun selectBrand(brand: BeerBrand?) {
+        updateState { copy(selectedBrand = brand, selectedBeer = null) }
     }
 
-    private suspend fun submitConsumedBeer() {
-        uiState.value.selectedBeer?.let {
-            handleResult(
-                addConsumedDrink(it),
-                {
-                    sendEvent(ConsumeBeerEvent.SubmitConsumedBeerSuccess)
+    private fun selectBeer(beeer: Drink.Beer?) {
+        updateState {
+            copy(
+                selectedBeer = beeer,
+                selectedStyle = beeer?.style
+            )
+        }
+    }
+
+    private fun openAddBeerDialog() {
+        val uiState = uiState.value
+        val addBeerDialogState = AddBeerDialogState(
+            beerStyles = uiState.beerStyles,
+            beerBrands = uiState.beerBrands
+        )
+        updateState {
+            copy(addDialogState = BeerAddDialogType.AddBeer(addBeerDialogState))
+        }
+    }
+
+    private fun openAddBrandDialog() {
+        updateState {
+            copy(addDialogState = BeerAddDialogType.AddBrand(AddBrandDialogState()))
+        }
+    }
+
+    private fun addBeerBrand(name: String) {
+        launch {
+            addBeerBrandUseCase(AddBrandRequest(name)).onResult(
+                onSuccess = { beerBrand ->
+                    updateState {
+                        copy(
+                            selectedBrand = beerBrand,
+                            selectedBeer = null,
+                            beers = emptyList(),
+                            addDialogState = null
+                        )
+                    }
                 },
-                { error ->
-                    val errorMsg = resourceHelper.getString(error.stringRes)
-                    updateState { copy(errorMsg = errorMsg) }
-                    sendEvent(ConsumeBeerEvent.SubmitConsumedBeerError(errorMsg))
+                onFailure = { error ->
+                    val addDialogState =
+                        when (val currentAddDialogState = uiState.value.addDialogState) {
+                            is BeerAddDialogType.AddBrand -> {
+                                currentAddDialogState.copy(
+                                    addDialogState = currentAddDialogState.addDialogState.copy(
+                                        errorMsg = error.toUiText()
+                                    )
+                                )
+                            }
+                            else -> currentAddDialogState
+                        }
+                    updateState { copy(addDialogState = addDialogState) }
                 }
             )
+        }
+    }
+
+    private fun addBeer(name: String, brand: BeerBrand, style: BeerStyle) {
+        launch {
+            val addBeerRequest =
+                AddBeerRequest(name, brand, style)
+            addBeerUseCase(addBeerRequest).onResult(
+                onSuccess = { beerId ->
+                    val newBeer = Drink.Beer(beerId.toInt(),
+                        name = name,
+                        brand = brand,
+                        style = style
+                    )
+                    updateState {
+                        copy(
+                            selectedStyle = style,
+                            selectedBrand = brand,
+                            selectedBeer = newBeer,
+                            addDialogState = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    val addDialogState =
+                        when (val currentAddDialogState = uiState.value.addDialogState) {
+                            is BeerAddDialogType.AddBeer -> {
+                                currentAddDialogState.copy(
+                                    addDialogState =
+                                        currentAddDialogState.addDialogState.copy(
+                                            errorMsg = error.toUiText()
+                                        )
+                                )
+                            }
+                            else -> currentAddDialogState
+                        }
+
+                    updateState { copy(addDialogState = addDialogState) }
+                }
+            )
+        }
+    }
+
+    private fun submitConsumedBeer() {
+        launch {
+            uiState.value.selectedBeer?.let {
+                addConsumedDrink(it).onResult(
+                    onSuccess = {
+                        sendEvent(ConsumeBeerEvent.SubmitConsumedBeerSuccess)
+                    },
+                    onFailure = { error ->
+                        updateState { copy(errorMsg = error.toUiText()) }
+                    }
+                )
+            }
         }
     }
 }

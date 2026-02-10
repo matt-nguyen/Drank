@@ -6,8 +6,8 @@ import com.github.michaelbull.result.runCatching
 import com.nghianguyen.drinks.CocktailLocalDataSource
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.LocalDataError
-import com.nghianguyen.drinks.model.ext.mapLocalDataError
 import com.nghianguyen.local.db.daos.CocktailDao
+import com.nghianguyen.local.ext.mapLocalDataError
 import com.nghianguyen.local.model.cocktail.CocktailEntity
 import com.nghianguyen.local.model.cocktail.toDomain
 import kotlinx.coroutines.flow.Flow

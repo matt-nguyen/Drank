@@ -1,11 +1,13 @@
 package com.nghianguyen.consume.viewmodel.beer
 
+import com.nghianguyen.consume.ui.beer.BeerAddDialogType
 import com.nghianguyen.consume.viewmodel.ConsumeDrinkState
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.beer.BeerBrand
 import com.nghianguyen.drinks.model.beer.BeerStyle
+import com.nghianguyen.text.UiText
 
-data class ConsumeBeerState(
+data class ConsumeBeerDialogState(
     val beerStyles: List<BeerStyle>,
     val beerBrands: List<BeerBrand>,
     val beers: List<Drink.Beer>,
@@ -14,5 +16,6 @@ data class ConsumeBeerState(
     val selectedBrand: BeerBrand?,
     val selectedBeer: Drink.Beer?,
 
-    val errorMsg: String?
+    val addDialogState: BeerAddDialogType?,
+    val errorMsg: UiText?
 ) : ConsumeDrinkState

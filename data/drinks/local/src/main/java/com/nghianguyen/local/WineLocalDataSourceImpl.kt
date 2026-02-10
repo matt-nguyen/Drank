@@ -6,10 +6,10 @@ import com.github.michaelbull.result.runCatching
 import com.nghianguyen.drinks.WineLocalDataSource
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.LocalDataError
-import com.nghianguyen.drinks.model.ext.mapLocalDataError
 import com.nghianguyen.drinks.model.wine.WineBrand
 import com.nghianguyen.drinks.model.wine.WineStyle
 import com.nghianguyen.local.db.daos.WineDao
+import com.nghianguyen.local.ext.mapLocalDataError
 import com.nghianguyen.local.model.wine.WineBrandEntity
 import com.nghianguyen.local.model.wine.WineEntity
 import com.nghianguyen.local.model.wine.toDomain

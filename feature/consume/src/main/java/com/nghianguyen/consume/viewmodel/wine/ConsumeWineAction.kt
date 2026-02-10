@@ -6,10 +6,15 @@ import com.nghianguyen.drinks.model.wine.WineBrand
 import com.nghianguyen.drinks.model.wine.WineStyle
 
 sealed interface ConsumeWineAction : ConsumeDrinkAction {
-    data class WineStyleSelected(val selectedStyle: WineStyle?) : ConsumeWineAction
-    data class WineBrandSelected(val selectedBrand: WineBrand?) : ConsumeWineAction
+    data class StyleSelected(val selectedStyle: WineStyle?) : ConsumeWineAction
+    data class BrandSelected(val selectedBrand: WineBrand?) : ConsumeWineAction
     data class WineSelected(val selectedWine: Drink.Wine?) : ConsumeWineAction
-    data class AddWineBrand(val brandName: String) : ConsumeWineAction
+
+    data object OpenAddBrandDialog: ConsumeWineAction
+    data object OpenAddWineDialog: ConsumeWineAction
+    data object DismissAddDialog: ConsumeWineAction
+
+    data class AddBrand(val brandName: String) : ConsumeWineAction
     data class AddWine(val name: String, val brand: WineBrand, val style: WineStyle) :
         ConsumeWineAction
 

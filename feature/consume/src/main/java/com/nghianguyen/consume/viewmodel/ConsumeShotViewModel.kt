@@ -2,10 +2,12 @@ package com.nghianguyen.consume.viewmodel
 
 import android.util.Log
 import com.github.michaelbull.result.Ok
-import com.nghianguyen.base.ResourcesHelper
+import com.nghianguyen.base.toUiText
+import com.nghianguyen.consume.ui.shot.AddShotDialogState
+import com.nghianguyen.consume.ui.shot.ShotAddDialogType
 import com.nghianguyen.consume.viewmodel.shot.ConsumeShotAction
 import com.nghianguyen.consume.viewmodel.shot.ConsumeShotEvent
-import com.nghianguyen.consume.viewmodel.shot.ConsumeShotState
+import com.nghianguyen.consume.viewmodel.shot.ConsumeShotDialogState
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.Liquor
 import com.nghianguyen.drinks.repository.LiquorRepository
@@ -26,44 +28,41 @@ class ConsumeShotViewModel @Inject constructor(
     private val liquorRepository: LiquorRepository,
     private val getShotsByLiquorUseCase: GetShotsByLiquorUseCase,
     private val addShotUseCase: AddShotUseCase,
-    private val resourceHelper: ResourcesHelper,
     addConsumedDrinkUseCase: AddConsumedDrinkUseCase
-): ConsumeDrinkViewModel<ConsumeShotState, ConsumeShotAction, ConsumeShotEvent>(addConsumedDrinkUseCase) {
-    override fun buildInitialState() = ConsumeShotState(
+): ConsumeDrinkViewModel<ConsumeShotDialogState, ConsumeShotAction, ConsumeShotEvent>(addConsumedDrinkUseCase) {
+    override fun buildInitialState() = ConsumeShotDialogState(
         liquors = emptyList(),
         shots = emptyList(),
         selectedLiquor = null,
         selectedShot = null,
+        addDialogState = null,
         errorMsg = null
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onStart() {
         launch {
-            handleResult(
-                liquorRepository.getLiquors(),
-                { liquors ->
-                    updateState { copy(liquors = liquors) }
-                },
-                { }
-            )
+            liquorRepository.getLiquors()
+                .onResult(
+                    onSuccess = { liquors ->
+                        updateState { copy(liquors = liquors) }
+                    },
+                    onFailure = {}
+                )
         }
 
         launch {
             uiState.map { it.selectedLiquor }
-                .flatMapLatest { selectedLiquor ->
-                    if (selectedLiquor != null) {
-                        getShotsByLiquorUseCase(GetShotsByLiquorRequest(selectedLiquor))
-                    } else {
-                        flowOf(Ok(emptyList()))
-                    }
+                .flatMapLatest { liquor ->
+                    liquor?.let {
+                        getShotsByLiquorUseCase(GetShotsByLiquorRequest(it))
+                    } ?: flowOf(Ok(emptyList()))
                 }.collect { shotsResult ->
-                    handleResult(
-                        shotsResult,
-                        { shots ->
+                    shotsResult.onResult(
+                        onSuccess = { shots ->
                             updateState { copy(shots = shots) }
                         },
-                        { }
+                        onFailure = {}
                     )
                 }
         }
@@ -71,56 +70,83 @@ class ConsumeShotViewModel @Inject constructor(
 
     override fun handleAction(action: ConsumeShotAction) {
         Log.d("ConsumeShotViewModel", "handleAction: $action")
-        launch {
-            when (action) {
-                is ConsumeShotAction.LiquorSelected -> {
-                    updateState { copy(selectedLiquor = action.selectedLiquor) }
-                }
-                is ConsumeShotAction.ShotSelected -> {
-                    updateState { copy(selectedShot = action.selectedShot) }
-                }
-                is ConsumeShotAction.AddShot -> {
-                    addShot(action.name, action.liquor)
-                }
-                ConsumeShotAction.SubmitConsumedShot -> {
-                    submitConsumedShot()
-                }
+        when (action) {
+            is ConsumeShotAction.LiquorSelected -> {
+                selectLiquor(action.selectedLiquor)
+            }
+            is ConsumeShotAction.ShotSelected -> {
+                selectShot(action.selectedShot)
+            }
+            ConsumeShotAction.OpenAddShotDialog -> {
+                openAddShotDialog()
+            }
+            ConsumeShotAction.DismissAddDialog -> {
+                updateState { copy(addDialogState = null) }
+            }
+            is ConsumeShotAction.AddShot -> {
+                addShot(action.name, action.liquor)
+            }
+            ConsumeShotAction.SubmitConsumedShot -> {
+                submitConsumedShot()
             }
         }
     }
 
-    private suspend fun addShot(name: String, liquor: Liquor) {
-        handleResult(
-            addShotUseCase(AddShotRequest(name, liquor)),
-            { shotId ->
-                updateState {
-                    copy(
-                        selectedShot = Drink.Shot(shotId.toInt(), name, liquor),
-                        selectedLiquor = liquor
-                    )
-                }
-                sendEvent(ConsumeShotEvent.AddShotSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeShotEvent.AddShotError(errorMsg))
-            }
-        )
+    private fun selectLiquor(liquor: Liquor?) {
+        updateState { copy(selectedLiquor = liquor) }
     }
 
-    private suspend fun submitConsumedShot() {
-        uiState.value.selectedShot?.let {
-            handleResult(
-                addConsumedDrink(it),
-                {
-                    sendEvent(ConsumeShotEvent.SubmitConsumeShotSuccess)
+    private fun selectShot(shot: Drink.Shot?) {
+        updateState { copy(selectedShot = shot) }
+    }
+
+    private fun openAddShotDialog() {
+        val addShotDialogState = AddShotDialogState(uiState.value.liquors)
+        updateState {
+            copy(addDialogState = ShotAddDialogType.AddShot(addShotDialogState))
+        }
+    }
+
+    private fun addShot(name: String, liquor: Liquor) {
+        launch {
+            addShotUseCase(AddShotRequest(name, liquor)).onResult(
+                onSuccess = { shotId ->
+                    updateState {
+                        copy(
+                            selectedShot = Drink.Shot(shotId.toInt(), name, liquor),
+                            selectedLiquor = liquor,
+                            addDialogState = null
+                        )
+                    }
                 },
-                { error ->
-                    val errorMsg = resourceHelper.getString(error.stringRes)
-                    updateState { copy(errorMsg = errorMsg) }
-                    sendEvent(ConsumeShotEvent.SubmitConsumeShotError(errorMsg))
+                onFailure = { error ->
+                    val addDialogState =
+                        when (val currentAddDialogState = uiState.value.addDialogState) {
+                            is ShotAddDialogType.AddShot -> {
+                                currentAddDialogState.copy(
+                                    addDialogState = currentAddDialogState.addDialogState.copy(
+                                        errorMsg = error.toUiText()
+                                    )
+                                )
+                            }
+                            else -> currentAddDialogState
+                        }
+                    updateState { copy(addDialogState = addDialogState) }
                 }
             )
+        }
+    }
+
+    private fun submitConsumedShot() {
+        launch {
+            uiState.value.selectedShot?.let {
+                addConsumedDrink(it).onResult(
+                    onSuccess = { sendEvent(ConsumeShotEvent.SubmitConsumeShotSuccess) },
+                    onFailure = { error ->
+                        updateState { copy(errorMsg = error.toUiText()) }
+                    }
+                )
+            }
         }
     }
 

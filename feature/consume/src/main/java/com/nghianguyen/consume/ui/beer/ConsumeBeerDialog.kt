@@ -1,4 +1,4 @@
-package com.nghianguyen.consume.ui
+package com.nghianguyen.consume.ui.beer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -14,25 +14,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nghianguyen.CollectFlowEffect
 import com.nghianguyen.common.ui.R
-import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerAction
-import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerEvent
-import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerState
+import com.nghianguyen.consume.ui.AddBrandDialog
+import com.nghianguyen.consume.ui.ExposedDropdownMenuField
 import com.nghianguyen.consume.viewmodel.ConsumeBeerViewModel
-import com.nghianguyen.drinks.model.Drink
-import com.nghianguyen.drinks.model.beer.BeerBrand
-import com.nghianguyen.drinks.model.beer.BeerStyle
+import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerAction
+import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerDialogState
+import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerEvent
+import com.nghianguyen.text.toStringText
+import com.nghianguyen.theme.LocalSpacing
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
@@ -47,27 +48,10 @@ fun ConsumeBeerDialog(
     val uiEvent = viewModel.uiEvent
 
     ConsumeBeerDialog(
-        consumeBeerState = uiState,
-        consumeBeerEvent = uiEvent,
-        onBeerStyleSelected = {
-            viewModel.handleAction(ConsumeBeerAction.BeerStyleSelected(it))
-        },
-        onBeerBrandSelected = {
-            viewModel.handleAction(ConsumeBeerAction.BeerBrandSelected(it))
-        },
-        onBeerSelected = {
-            viewModel.handleAction(ConsumeBeerAction.BeerSelected(it))
-        },
-        onSubmitNewBeerBrand = {
-            viewModel.handleAction(ConsumeBeerAction.AddBeerBrand(it))
-        },
-        onSubmitNewBeer = { bs, br, b ->
-            viewModel.handleAction(ConsumeBeerAction.AddBeer(bs, br, b))
-        },
-        onSubmitConsumedBeer = {
-            viewModel.handleAction(ConsumeBeerAction.SubmitConsumedBeer)
-        },
-        closeDrinkDialog = dismissDrinkDialog
+        state = uiState,
+        event = uiEvent,
+        onAction = { viewModel.handleAction(it) },
+        dismissDialog = dismissDrinkDialog
     )
 }
 
@@ -75,45 +59,15 @@ fun ConsumeBeerDialog(
 @Composable
 fun ConsumeBeerDialog(
     modifier: Modifier = Modifier,
-    consumeBeerState: ConsumeBeerState,
-    consumeBeerEvent: SharedFlow<ConsumeBeerEvent>,
-    onBeerStyleSelected: (BeerStyle?) -> Unit,
-    onBeerBrandSelected: (BeerBrand?) -> Unit,
-    onBeerSelected: (Drink.Beer?) -> Unit,
-    onSubmitNewBeerBrand: (String) -> Unit,
-    onSubmitNewBeer: (BeerStyle, BeerBrand, String) -> Unit,
-    onSubmitConsumedBeer: () -> Unit,
-    closeDrinkDialog: () -> Unit
+    state: ConsumeBeerDialogState,
+    event: SharedFlow<ConsumeBeerEvent>,
+    onAction: (ConsumeBeerAction) -> Unit,
+    dismissDialog: () -> Unit
 ) {
-    var addBrandDialog by remember { mutableStateOf(false) }
-    var addBeerDialog by remember { mutableStateOf(false) }
-
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-    var addDialogErrorMsg by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        consumeBeerEvent.collect {
-            when (it) {
-                ConsumeBeerEvent.AddBeerBrandSuccess -> {
-                    addBrandDialog = false
-                    addDialogErrorMsg = null
-                }
-                is ConsumeBeerEvent.AddBeerBrandError -> {
-                    addDialogErrorMsg = it.errorMsg
-                }
-                ConsumeBeerEvent.AddBeerSuccess -> {
-                    addBeerDialog = false
-                    addDialogErrorMsg = null
-                }
-                is ConsumeBeerEvent.AddBeerError -> {
-                    addDialogErrorMsg = it.errorMsg
-                }
-                ConsumeBeerEvent.SubmitConsumedBeerSuccess -> {
-                    closeDrinkDialog()
-                }
-                is ConsumeBeerEvent.SubmitConsumedBeerError -> {
-                    errorMsg = it.errorMsg
-                }
+    CollectFlowEffect(event) {
+        when (it) {
+            ConsumeBeerEvent.SubmitConsumedBeerSuccess -> {
+                dismissDialog()
             }
         }
     }
@@ -121,28 +75,33 @@ fun ConsumeBeerDialog(
     val defaultText = stringResource(R.string.default_select)
 
     var beerStyleExpanded by remember { mutableStateOf(false) }
-    var selectedBeerStyleText by remember(consumeBeerState.selectedStyle) {
+    var selectedBeerStyleText by remember(state.selectedStyle) {
         mutableStateOf(
-            consumeBeerState.selectedStyle?.name ?: defaultText
+            state.selectedStyle?.name ?: defaultText
         )
     }
 
     var beerBrandExpanded by remember { mutableStateOf(false) }
-    var selectedBeerBrandText by remember(consumeBeerState.selectedBrand) {
+    var selectedBeerBrandText by remember(state.selectedBrand) {
         mutableStateOf(
-            consumeBeerState.selectedBrand?.name ?: defaultText
+            state.selectedBrand?.name ?: defaultText
         )
     }
 
     var beerExpanded by remember { mutableStateOf(false) }
-    var selectedBeerText by remember(consumeBeerState.selectedBeer) {
+    var selectedBeerText by remember(state.selectedBeer) {
         mutableStateOf(
-            consumeBeerState.selectedBeer?.name ?: defaultText
+            state.selectedBeer?.name ?: defaultText
         )
     }
 
+    val context = LocalContext.current
+    var errorMsg by remember(state.errorMsg) {
+        mutableStateOf(state.errorMsg?.toStringText(context))
+    }
+
     Dialog(
-        onDismissRequest = closeDrinkDialog
+        onDismissRequest = dismissDialog
     ) {
         Card(
             modifier = modifier
@@ -150,17 +109,17 @@ fun ConsumeBeerDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(LocalSpacing.current.medium)
             ) {
                 Text(
                     text = stringResource(R.string.title_add_beer),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(LocalSpacing.current.large))
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeBeerState.beerStyles,
+                    menuItems = state.beerStyles,
                     text = selectedBeerStyleText,
                     label = { Text(stringResource(R.string.label_style)) },
                     expanded = beerStyleExpanded,
@@ -168,12 +127,12 @@ fun ConsumeBeerDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         beerStyleExpanded = false
-                        onBeerStyleSelected(it)
+                        onAction(ConsumeBeerAction.StyleSelected(it))
                     }
                 )
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeBeerState.beerBrands,
+                    menuItems = state.beerBrands,
                     text = selectedBeerBrandText,
                     label = { Text(stringResource(R.string.label_brand)) },
                     expanded = beerBrandExpanded,
@@ -181,18 +140,18 @@ fun ConsumeBeerDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         beerBrandExpanded = false
-                        onBeerBrandSelected(it)
+                        onAction(ConsumeBeerAction.BrandSelected(it))
                     }
                 )
 
                 TextButton(
-                    onClick = { addBrandDialog = true }
+                    onClick = { onAction(ConsumeBeerAction.OpenAddBrandDialog) }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add_24px),
                         contentDescription = null
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(LocalSpacing.current.small))
                     Text(
                         text = stringResource(R.string.button_add_new),
                         style = MaterialTheme.typography.labelSmall,
@@ -201,7 +160,7 @@ fun ConsumeBeerDialog(
                 }
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeBeerState.beers,
+                    menuItems = state.beers,
                     text = selectedBeerText,
                     label = { Text(stringResource(R.string.label_beer)) },
                     expanded = beerExpanded,
@@ -209,18 +168,18 @@ fun ConsumeBeerDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         beerExpanded = false
-                        onBeerSelected(it)
+                        onAction(ConsumeBeerAction.BeerSelected(it))
                     }
                 )
 
                 TextButton(
-                    onClick = { addBeerDialog = true }
+                    onClick = { onAction(ConsumeBeerAction.OpenAddBeerDialog) }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add_24px),
                         contentDescription = null
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(LocalSpacing.current.small))
                     Text(
                         text = stringResource(R.string.button_add_new),
                         style = MaterialTheme.typography.labelSmall,
@@ -237,17 +196,17 @@ fun ConsumeBeerDialog(
                 }
 
                 Row {
-                    TextButton(onClick = closeDrinkDialog) {
+                    TextButton(onClick = dismissDialog) {
                         Text(
                             text = stringResource(R.string.button_cancel),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(LocalSpacing.current.medium))
                     TextButton(
-                        onClick = onSubmitConsumedBeer,
-                        enabled = consumeBeerState.selectedBeer != null
+                        onClick = { onAction(ConsumeBeerAction.SubmitConsumedBeer) },
+                        enabled = state.selectedBeer != null
                     ) {
                         Text(
                             text = stringResource(R.string.button_add),
@@ -261,29 +220,30 @@ fun ConsumeBeerDialog(
             }
         }
 
-        if (addBrandDialog) {
-            AddBrandDialog(
-                submitNewBrand = onSubmitNewBeerBrand,
-                onDismissRequest = {
-                    addBrandDialog = false
-                    addDialogErrorMsg = null
-                },
-                errorMsg = addDialogErrorMsg
-            )
-        }
+        val addDialog = state.addDialogState
+        when (addDialog) {
+            is BeerAddDialogType.AddBrand -> {
+                AddBrandDialog(
+                    state = addDialog.addDialogState,
+                    submitNewBrand = { onAction(ConsumeBeerAction.AddBrand(it)) },
+                    onDismissRequest = { onAction(ConsumeBeerAction.DismissAddDialog) }
+                )
+            }
 
-        if (addBeerDialog) {
-            AddBeerDialog(
-                beerStyles = consumeBeerState.beerStyles,
-                beerBrands = consumeBeerState.beerBrands,
-                submitNewBeer = onSubmitNewBeer,
-                onDismissRequest = {
-                    addBeerDialog = false
-                    addDialogErrorMsg = null
-                },
-                errorMsg = addDialogErrorMsg
-            )
-        }
+            is BeerAddDialogType.AddBeer -> {
+                AddBeerDialog(
+                    state = addDialog.addDialogState,
+                    submitNewBeer = { bs, bb, s ->
+                        onAction(
+                            ConsumeBeerAction.AddBeer(bs, bb, s)
+                        )
+                    },
+                    onDismissRequest = { onAction(ConsumeBeerAction.DismissAddDialog) }
+                )
+            }
 
+            null -> {}
+        }
     }
+
 }

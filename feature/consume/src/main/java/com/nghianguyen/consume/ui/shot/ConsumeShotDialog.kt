@@ -1,4 +1,4 @@
-package com.nghianguyen.consume.ui
+package com.nghianguyen.consume.ui.shot
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -13,88 +13,58 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nghianguyen.CollectFlowEffect
 import com.nghianguyen.common.ui.R
-import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailAction
-import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailEvent
-import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailState
-import com.nghianguyen.consume.viewmodel.ConsumeCocktailViewModel
-import com.nghianguyen.consume.viewmodel.ConsumeDrinkEvent
-import com.nghianguyen.drinks.model.Drink
-import com.nghianguyen.drinks.model.Liquor
+import com.nghianguyen.consume.ui.ExposedDropdownMenuField
+import com.nghianguyen.consume.viewmodel.ConsumeShotViewModel
+import com.nghianguyen.consume.viewmodel.shot.ConsumeShotAction
+import com.nghianguyen.consume.viewmodel.shot.ConsumeShotDialogState
+import com.nghianguyen.consume.viewmodel.shot.ConsumeShotEvent
+import com.nghianguyen.text.toStringText
+import com.nghianguyen.theme.LocalSpacing
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
- * Dialog for the user to enter info on a cocktail being consumed.
+ * Dialog for the user to enter info on a shot of liquor being consumed.
  */
 @Composable
-fun ConsumeCocktailDialog(
-    viewModel: ConsumeCocktailViewModel,
+fun ConsumeShotDialog(
+    viewModel: ConsumeShotViewModel,
     dismissDrinkDialog: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uiEvent = viewModel.uiEvent
 
-    ConsumeCocktailDialog(
-        consumeCocktailState = uiState,
-        consumeCocktailEvent = uiEvent,
-        onLiquorSelected = { viewModel.handleAction(ConsumeCocktailAction.LiquorSelected(it)) },
-        onCocktailSelected = { viewModel.handleAction(ConsumeCocktailAction.CocktailSelected(it)) },
-        onSubmitNewCocktail = { n, l ->
-            viewModel.handleAction(
-                ConsumeCocktailAction.AddCocktail(
-                    n,
-                    l
-                )
-            )
-        },
-        onSubmitConsumedCocktail = { viewModel.handleAction(ConsumeCocktailAction.SubmitConsumedCocktail) },
+    ConsumeShotDialog(
+        state = uiState,
+        event = uiEvent,
+        onAction = { viewModel.handleAction(it) },
         dismissDialog = dismissDrinkDialog
     )
 }
 
 @Composable
-fun ConsumeCocktailDialog(
+fun ConsumeShotDialog(
     modifier: Modifier = Modifier,
-    consumeCocktailState: ConsumeCocktailState,
-    consumeCocktailEvent: SharedFlow<ConsumeDrinkEvent>,
-    onLiquorSelected: (Liquor?) -> Unit,
-    onCocktailSelected: (Drink.Cocktail?) -> Unit,
-    onSubmitNewCocktail: (String, Liquor) -> Unit,
-    onSubmitConsumedCocktail: () -> Unit,
+    state: ConsumeShotDialogState,
+    event: SharedFlow<ConsumeShotEvent>,
+    onAction: (ConsumeShotAction) -> Unit,
     dismissDialog: () -> Unit
 ) {
-    var addCocktailDialog by remember { mutableStateOf(false) }
-
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-    var addDialogErrorMsg by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        consumeCocktailEvent.collect {
-            when (it) {
-                ConsumeCocktailEvent.AddCocktailSuccess -> {
-                    addCocktailDialog = false
-                    addDialogErrorMsg = null
-                }
-                is ConsumeCocktailEvent.AddCocktailError -> {
-                    addDialogErrorMsg = it.errorMsg
-                }
-                ConsumeCocktailEvent.SubmitConsumeCocktailSuccess -> {
-                    dismissDialog()
-                }
-                is ConsumeCocktailEvent.SubmitConsumeCocktailError -> {
-                    errorMsg = it.errorMsg
-                }
+    CollectFlowEffect(event) {
+        when (it) {
+            ConsumeShotEvent.SubmitConsumeShotSuccess -> {
+                dismissDialog()
             }
         }
     }
@@ -102,17 +72,22 @@ fun ConsumeCocktailDialog(
     val defaultText = stringResource(R.string.default_select)
 
     var liquorExpanded by remember { mutableStateOf(false) }
-    var selectedLiquorText by remember(consumeCocktailState.selectedLiquor) {
+    var selectedLiquorText by remember(state.selectedLiquor) {
         mutableStateOf(
-            consumeCocktailState.selectedLiquor?.name ?: defaultText
+            state.selectedLiquor?.name ?: defaultText
         )
     }
 
-    var cocktailExpanded by remember { mutableStateOf(false) }
-    var selectedCocktailText by remember(consumeCocktailState.selectedCocktail) {
+    var shotExpanded by remember { mutableStateOf(false) }
+    var selectedShotText by remember(state.selectedShot) {
         mutableStateOf(
-            consumeCocktailState.selectedCocktail?.name ?: defaultText
+            state.selectedShot?.name ?: defaultText
         )
+    }
+
+    val context = LocalContext.current
+    var errorMsg by remember(state.errorMsg) {
+        mutableStateOf(state.errorMsg?.toStringText(context))
     }
 
     Dialog(
@@ -124,17 +99,17 @@ fun ConsumeCocktailDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(LocalSpacing.current.medium)
             ) {
                 Text(
-                    text = stringResource(R.string.title_add_cocktail),
+                    text = stringResource(R.string.title_add_shot),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(LocalSpacing.current.large))
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeCocktailState.liquors,
+                    menuItems = state.liquors,
                     text = selectedLiquorText,
                     label = { Text(stringResource(R.string.label_liquor)) },
                     expanded = liquorExpanded,
@@ -142,31 +117,31 @@ fun ConsumeCocktailDialog(
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
                         liquorExpanded = false
-                        onLiquorSelected(it)
+                        onAction(ConsumeShotAction.LiquorSelected(it))
                     }
                 )
 
                 ExposedDropdownMenuField(
-                    menuItems = consumeCocktailState.cocktails,
-                    text = selectedCocktailText,
-                    label = { Text(stringResource(R.string.label_cocktail)) },
-                    expanded = cocktailExpanded,
-                    onExpandedChange = { cocktailExpanded = it },
+                    menuItems = state.shots,
+                    text = selectedShotText,
+                    label = { Text(stringResource(R.string.label_shot)) },
+                    expanded = shotExpanded,
+                    onExpandedChange = { shotExpanded = it },
                     getMenuItemName = { it.name },
                     onMenuItemClick = {
-                        cocktailExpanded = false
-                        onCocktailSelected(it)
+                        shotExpanded = false
+                        onAction(ConsumeShotAction.ShotSelected(it))
                     }
                 )
 
                 TextButton(
-                    onClick = { addCocktailDialog = true }
+                    onClick = { onAction(ConsumeShotAction.OpenAddShotDialog) }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add_24px),
                         contentDescription = null
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(LocalSpacing.current.small))
                     Text(
                         text = stringResource(R.string.button_add_new),
                         style = MaterialTheme.typography.labelSmall,
@@ -190,11 +165,11 @@ fun ConsumeCocktailDialog(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(LocalSpacing.current.medium))
 
                     TextButton(
-                        onClick = onSubmitConsumedCocktail,
-                        enabled = consumeCocktailState.selectedCocktail != null
+                        onClick = { onAction(ConsumeShotAction.SubmitConsumedShot) },
+                        enabled = state.selectedShot != null
                     ) {
                         Text(
                             text = stringResource(R.string.button_add),
@@ -202,20 +177,29 @@ fun ConsumeCocktailDialog(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
+
+
                 }
+
+
             }
         }
 
-        if (addCocktailDialog) {
-            AddCocktailDialog(
-                liquors = consumeCocktailState.liquors,
-                submitNewCocktail = onSubmitNewCocktail,
-                onDismissRequest = {
-                    addCocktailDialog = false
-                    addDialogErrorMsg = null
-                },
-                errorMsg = addDialogErrorMsg
-            )
+        val addDialog = state.addDialogState
+        when (addDialog) {
+            is ShotAddDialogType.AddShot -> {
+                AddShotDialog(
+                    state = addDialog.addDialogState,
+                    submitNewShot = { s, l ->
+                        onAction(ConsumeShotAction.AddShot(s, l))
+                    },
+                    onDismissRequest = {
+                        onAction(ConsumeShotAction.DismissAddDialog)
+                    }
+                )
+            }
+            null -> {}
         }
+
     }
 }

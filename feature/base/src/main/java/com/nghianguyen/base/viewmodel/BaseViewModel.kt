@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
@@ -16,8 +17,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
-abstract class BaseViewModel<STATE, ACTION, EVENT>(): ViewModel() {
+abstract class BaseViewModel<STATE, ACTION, EVENT>() : ViewModel() {
 
     protected abstract fun buildInitialState(): STATE
     protected abstract fun onStart()
@@ -34,7 +36,7 @@ abstract class BaseViewModel<STATE, ACTION, EVENT>(): ViewModel() {
             _uiState.value
         )
 
-    private val _uiEvent = Channel<EVENT>()
+    private val _uiEvent = Channel<EVENT>(Channel.BUFFERED)
 
     val uiEvent = _uiEvent.receiveAsFlow()
         .shareIn(
@@ -50,25 +52,27 @@ abstract class BaseViewModel<STATE, ACTION, EVENT>(): ViewModel() {
         launch { _uiEvent.send(event) }
     }
 
-    protected fun <V, E> handleResult(result: Result<V, E>, onSuccess: (V) -> Unit, onFailure: (E) -> Unit ) {
-        if (result.isOk) {
-            onSuccess(result.value)
+    protected fun <V, E> Result<V, E>.onResult(onSuccess: (V) -> Unit, onFailure: (E) -> Unit) {
+        if (isOk) {
+            onSuccess(value)
         } else {
-            onFailure(result.error)
+            onFailure(error)
         }
     }
 
     protected fun launch(
-        coroutineContext: CoroutineContext? = null,
+        coroutineContext: CoroutineContext = EmptyCoroutineContext,
         block: suspend CoroutineScope.() -> Unit
     ) {
         viewModelScope.launch(
-            context = coroutineContext ?: coroutineExceptionHandler,
+            context =
+                if (coroutineContext[CoroutineExceptionHandler] != null) coroutineContext
+                else coroutineContext + defaultCoroutineExceptionHandler,
             block = block
         )
     }
 
-    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+    private val defaultCoroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e("ViewModel", "Unexpected error", throwable)
     }
 }

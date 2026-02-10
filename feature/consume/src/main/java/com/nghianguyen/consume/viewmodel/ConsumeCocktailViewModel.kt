@@ -2,10 +2,12 @@ package com.nghianguyen.consume.viewmodel
 
 import android.util.Log
 import com.github.michaelbull.result.Ok
-import com.nghianguyen.base.ResourcesHelper
+import com.nghianguyen.base.toUiText
+import com.nghianguyen.consume.ui.cocktail.AddCocktailDialogState
+import com.nghianguyen.consume.ui.cocktail.CocktailAddDialogType
 import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailAction
+import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailDialogState
 import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailEvent
-import com.nghianguyen.consume.viewmodel.cocktail.ConsumeCocktailState
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.Liquor
 import com.nghianguyen.drinks.repository.LiquorRepository
@@ -26,44 +28,40 @@ class ConsumeCocktailViewModel @Inject constructor(
     private val liquorRepository: LiquorRepository,
     private val getCocktailsByLiquorUseCase: GetCocktailsByLiquorUseCase,
     private val addCocktailUseCase: AddCocktailUseCase,
-    private val resourceHelper: ResourcesHelper,
     addConsumedDrinkUseCase: AddConsumedDrinkUseCase
-): ConsumeDrinkViewModel<ConsumeCocktailState, ConsumeCocktailAction, ConsumeCocktailEvent>(addConsumedDrinkUseCase) {
-    override fun buildInitialState() = ConsumeCocktailState(
+): ConsumeDrinkViewModel<ConsumeCocktailDialogState, ConsumeCocktailAction, ConsumeCocktailEvent>(addConsumedDrinkUseCase) {
+    override fun buildInitialState() = ConsumeCocktailDialogState(
         liquors = emptyList(),
         cocktails = emptyList(),
         selectedLiquor = null,
         selectedCocktail = null,
+        addDialogState = null,
         errorMsg = null
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onStart() {
         launch {
-            handleResult(
-                liquorRepository.getLiquors(),
-                { liquors ->
+            liquorRepository.getLiquors().onResult(
+                onSuccess = { liquors ->
                     updateState { copy(liquors = liquors) }
                 },
-                { }
+                onFailure = {}
             )
         }
 
         launch {
             uiState.map { it.selectedLiquor }
-                .flatMapLatest { selectedLiquor ->
-                    if (selectedLiquor != null) {
-                        getCocktailsByLiquorUseCase(GetCocktailsByLiquorRequest(selectedLiquor))
-                    } else {
-                        flowOf(Ok(emptyList()))
-                    }
+                .flatMapLatest { liquor ->
+                    liquor?.let {
+                        getCocktailsByLiquorUseCase(GetCocktailsByLiquorRequest(it))
+                    } ?: flowOf(Ok(emptyList()))
                 }.collect { cocktailsResult ->
-                    handleResult(
-                        cocktailsResult,
-                        { cocktails ->
+                    cocktailsResult.onResult(
+                        onSuccess = { cocktails ->
                             updateState { copy(cocktails = cocktails) }
                         },
-                        { }
+                        onFailure = {}
                     )
                 }
         }
@@ -71,56 +69,89 @@ class ConsumeCocktailViewModel @Inject constructor(
 
     override fun handleAction(action: ConsumeCocktailAction) {
         Log.d("ConsumeCocktailViewModel", "handleAction: $action")
-        launch {
-            when (action) {
-                is ConsumeCocktailAction.LiquorSelected -> {
-                    updateState { copy(selectedLiquor = action.selectedLiquor) }
-                }
-                is ConsumeCocktailAction.CocktailSelected -> {
-                    updateState { copy(selectedCocktail = action.selectedCocktail) }
-                }
-                is ConsumeCocktailAction.AddCocktail -> {
-                    addCocktail(action.name, action.liquor)
-                }
-                ConsumeCocktailAction.SubmitConsumedCocktail -> {
-                    submitConsumedCocktail()
-                }
+        when (action) {
+            is ConsumeCocktailAction.LiquorSelected -> {
+                selectLiquor(action.selectedLiquor)
+            }
+            is ConsumeCocktailAction.CocktailSelected -> {
+                selectCocktail(action.selectedCocktail)
+            }
+            ConsumeCocktailAction.OpenAddCocktailDialog -> {
+                openAddCocktailDialog()
+            }
+            ConsumeCocktailAction.DismissAddDialog -> {
+                updateState { copy(addDialogState = null) }
+            }
+            is ConsumeCocktailAction.AddCocktail -> {
+                addCocktail(action.name, action.liquor)
+            }
+            ConsumeCocktailAction.SubmitConsumedCocktail -> {
+                submitConsumedCocktail()
             }
         }
     }
 
-    private suspend fun addCocktail(name: String, liquor: Liquor) {
-        handleResult(
-            addCocktailUseCase(AddCocktailRequest(name, liquor)),
-            { cocktailId ->
-                updateState {
-                    copy(
-                        selectedCocktail = Drink.Cocktail(cocktailId.toInt(), name, liquor),
-                        selectedLiquor = liquor
-                    )
-                }
-                sendEvent(ConsumeCocktailEvent.AddCocktailSuccess)
-            },
-            { error ->
-                val errorMsg = resourceHelper.getString(error.stringRes)
-                sendEvent(ConsumeCocktailEvent.AddCocktailError(errorMsg))
-            }
-        )
+    private fun selectLiquor(liquor: Liquor?) {
+        updateState { copy(selectedLiquor = liquor) }
     }
 
-    private suspend fun submitConsumedCocktail() {
-        uiState.value.selectedCocktail?.let {
-            handleResult(
-                addConsumedDrink(it),
-                {
-                    sendEvent(ConsumeCocktailEvent.SubmitConsumeCocktailSuccess)
+    private fun selectCocktail(cocktail: Drink.Cocktail?) {
+        updateState { copy(selectedCocktail = cocktail) }
+    }
+
+    private fun openAddCocktailDialog() {
+        val addCocktailDialogState = AddCocktailDialogState(
+            liquors = uiState.value.liquors
+        )
+        updateState {
+            copy(
+                addDialogState =
+                    CocktailAddDialogType.AddCocktail(addCocktailDialogState)
+            )
+        }
+    }
+    private fun addCocktail(name: String, liquor: Liquor) {
+        launch {
+            addCocktailUseCase(AddCocktailRequest(name, liquor)).onResult(
+                onSuccess = { cocktailId ->
+                    updateState {
+                        copy(
+                            selectedCocktail = Drink.Cocktail(cocktailId.toInt(), name, liquor),
+                            selectedLiquor = liquor,
+                            addDialogState = null
+                        )
+                    }
                 },
-                { error ->
-                    val errorMsg = resourceHelper.getString(error.stringRes)
-                    updateState { copy(errorMsg = errorMsg) }
-                    sendEvent(ConsumeCocktailEvent.SubmitConsumeCocktailError(errorMsg))
+                onFailure = { error ->
+                    val addDialogState =
+                        when (val currentAddDialogState = uiState.value.addDialogState) {
+                            is CocktailAddDialogType.AddCocktail -> {
+                                currentAddDialogState.copy(
+                                    addDialogState = currentAddDialogState.addDialogState.copy(
+                                        errorMsg = error.toUiText()
+                                    )
+                                )
+                            }
+                            null -> currentAddDialogState
+                        }
+                    updateState { copy(addDialogState = addDialogState) }
                 }
             )
+        }
+    }
+
+    private fun submitConsumedCocktail() {
+        launch {
+            uiState.value.selectedCocktail?.let {
+                addConsumedDrink(it).onResult(
+                    onSuccess = {
+                        sendEvent(ConsumeCocktailEvent.SubmitConsumeCocktailSuccess)
+                    },
+                    onFailure = { error ->
+                        updateState { copy(errorMsg = error.toUiText()) }
+                    }
+                )
+            }
         }
     }
 
