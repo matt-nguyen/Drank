@@ -6,16 +6,14 @@ import com.nghianguyen.base.toUiText
 import com.nghianguyen.consume.ui.shot.AddShotDialogState
 import com.nghianguyen.consume.ui.shot.ShotAddDialogType
 import com.nghianguyen.consume.viewmodel.shot.ConsumeShotAction
-import com.nghianguyen.consume.viewmodel.shot.ConsumeShotEvent
 import com.nghianguyen.consume.viewmodel.shot.ConsumeShotDialogState
+import com.nghianguyen.consume.viewmodel.shot.ConsumeShotEvent
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.Liquor
 import com.nghianguyen.drinks.repository.LiquorRepository
 import com.nghianguyen.drinks.usecase.AddConsumedDrinkUseCase
 import com.nghianguyen.drinks.usecase.AddShotUseCase
 import com.nghianguyen.drinks.usecase.GetShotsByLiquorUseCase
-import com.nghianguyen.drinks.usecase.request.AddShotRequest
-import com.nghianguyen.drinks.usecase.request.GetShotsByLiquorRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
@@ -55,7 +53,7 @@ class ConsumeShotViewModel @Inject constructor(
             uiState.map { it.selectedLiquor }
                 .flatMapLatest { liquor ->
                     liquor?.let {
-                        getShotsByLiquorUseCase(GetShotsByLiquorRequest(it))
+                        getShotsByLiquorUseCase(it)
                     } ?: flowOf(Ok(emptyList()))
                 }.collect { shotsResult ->
                     shotsResult.onResult(
@@ -109,7 +107,7 @@ class ConsumeShotViewModel @Inject constructor(
 
     private fun addShot(name: String, liquor: Liquor) {
         launch {
-            addShotUseCase(AddShotRequest(name, liquor)).onResult(
+            addShotUseCase(name, liquor).onResult(
                 onSuccess = { shotId ->
                     updateState {
                         copy(

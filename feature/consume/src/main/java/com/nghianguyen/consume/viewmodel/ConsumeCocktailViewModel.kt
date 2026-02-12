@@ -14,8 +14,6 @@ import com.nghianguyen.drinks.repository.LiquorRepository
 import com.nghianguyen.drinks.usecase.AddCocktailUseCase
 import com.nghianguyen.drinks.usecase.AddConsumedDrinkUseCase
 import com.nghianguyen.drinks.usecase.GetCocktailsByLiquorUseCase
-import com.nghianguyen.drinks.usecase.request.AddCocktailRequest
-import com.nghianguyen.drinks.usecase.request.GetCocktailsByLiquorRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
@@ -54,7 +52,7 @@ class ConsumeCocktailViewModel @Inject constructor(
             uiState.map { it.selectedLiquor }
                 .flatMapLatest { liquor ->
                     liquor?.let {
-                        getCocktailsByLiquorUseCase(GetCocktailsByLiquorRequest(it))
+                        getCocktailsByLiquorUseCase(it)
                     } ?: flowOf(Ok(emptyList()))
                 }.collect { cocktailsResult ->
                     cocktailsResult.onResult(
@@ -112,7 +110,7 @@ class ConsumeCocktailViewModel @Inject constructor(
     }
     private fun addCocktail(name: String, liquor: Liquor) {
         launch {
-            addCocktailUseCase(AddCocktailRequest(name, liquor)).onResult(
+            addCocktailUseCase(name, liquor).onResult(
                 onSuccess = { cocktailId ->
                     updateState {
                         copy(

@@ -2,8 +2,8 @@ package com.nghianguyen.drinks
 
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
-import com.nghianguyen.drinks.model.LocalDataError
 import com.nghianguyen.drinks.model.Drink
+import com.nghianguyen.drinks.model.Error
 import com.nghianguyen.drinks.model.beer.BeerBrand
 import com.nghianguyen.drinks.model.beer.BeerStyle
 import com.nghianguyen.drinks.repository.BeerRepository
@@ -15,7 +15,7 @@ class BeerRepositoryImpl @Inject constructor(
     private val localDataSource: BeerLocalDataSource
 ): BeerRepository {
 
-    override fun getBeersByBrand(brandId: Int): Flow<Result<List<Drink.Beer>, LocalDataError>> {
+    override fun getBeersByBrand(brandId: Int): Flow<Result<List<Drink.Beer>, Error>> {
         require(brandId > 0) {
             "brandId must be > 0: $brandId"
         }
@@ -30,7 +30,7 @@ class BeerRepositoryImpl @Inject constructor(
         name: String,
         brandId: Int,
         styleId: Int
-    ): Result<Long, LocalDataError> {
+    ): Result<Long, Error> {
         require(name.isNotEmpty() && name.isNotBlank()) {
             "name should not be empty nor blank: $name"
         }
@@ -43,7 +43,7 @@ class BeerRepositoryImpl @Inject constructor(
         return localDataSource.addBeer(name, brandId, styleId)
     }
 
-    override suspend fun getBeerBrands(): Flow<Result<List<BeerBrand>, LocalDataError>> {
+    override suspend fun getBeerBrands(): Flow<Result<List<BeerBrand>, Error>> {
         return localDataSource.getBeerBrands().map { beerBrandsResult ->
             beerBrandsResult.map { beerBrands ->
                 beerBrands.sortedBy { it.name }
@@ -51,7 +51,7 @@ class BeerRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun addBeerBrand(brandName: String): Result<BeerBrand, LocalDataError> {
+    override suspend fun addBeerBrand(brandName: String): Result<BeerBrand, Error> {
         require(brandName.isNotEmpty() && brandName.isNotBlank()) {
             "brandName should not be empty nor blank: $brandName"
         }
@@ -61,7 +61,7 @@ class BeerRepositoryImpl @Inject constructor(
             }
     }
 
-    override suspend fun getBeerStyles(): Result<List<BeerStyle>, LocalDataError> {
+    override suspend fun getBeerStyles(): Result<List<BeerStyle>, Error> {
         return localDataSource.getBeerStyles().map { beerStyles ->
             val beerStylesFlattened = mutableListOf<BeerStyle>()
             beerStyles.forEach { beerStyle ->

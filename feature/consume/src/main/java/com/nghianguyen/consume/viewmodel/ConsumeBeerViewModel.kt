@@ -7,8 +7,8 @@ import com.nghianguyen.consume.ui.AddBrandDialogState
 import com.nghianguyen.consume.ui.beer.AddBeerDialogState
 import com.nghianguyen.consume.ui.beer.BeerAddDialogType
 import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerAction
-import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerEvent
 import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerDialogState
+import com.nghianguyen.consume.viewmodel.beer.ConsumeBeerEvent
 import com.nghianguyen.drinks.model.Drink
 import com.nghianguyen.drinks.model.beer.BeerBrand
 import com.nghianguyen.drinks.model.beer.BeerStyle
@@ -17,9 +17,6 @@ import com.nghianguyen.drinks.usecase.AddBeerBrandUseCase
 import com.nghianguyen.drinks.usecase.AddBeerUseCase
 import com.nghianguyen.drinks.usecase.AddConsumedDrinkUseCase
 import com.nghianguyen.drinks.usecase.GetBeersByBrandUseCase
-import com.nghianguyen.drinks.usecase.request.AddBeerRequest
-import com.nghianguyen.drinks.usecase.request.AddBrandRequest
-import com.nghianguyen.drinks.usecase.request.GetBeersByBrandRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,7 +31,6 @@ class ConsumeBeerViewModel @Inject constructor(
     private val getBeersByBrandUseCase: GetBeersByBrandUseCase,
     private val addBeerBrandUseCase: AddBeerBrandUseCase,
     private val addBeerUseCase: AddBeerUseCase,
-//    private val resourceHelper: ResourcesHelper,
     addConsumedDrinkUseCase: AddConsumedDrinkUseCase
 ) : ConsumeDrinkViewModel<ConsumeBeerDialogState, ConsumeBeerAction, ConsumeBeerEvent>(
     addConsumedDrinkUseCase
@@ -74,7 +70,7 @@ class ConsumeBeerViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .flatMapLatest { brand ->
                     brand?.let {
-                        getBeersByBrandUseCase(GetBeersByBrandRequest(it))
+                        getBeersByBrandUseCase(it)
                     } ?: flowOf(Ok(emptyList()))
                 }.collect { beersByBrandResult ->
                     beersByBrandResult.onResult(
@@ -161,7 +157,7 @@ class ConsumeBeerViewModel @Inject constructor(
 
     private fun addBeerBrand(name: String) {
         launch {
-            addBeerBrandUseCase(AddBrandRequest(name)).onResult(
+            addBeerBrandUseCase(name).onResult(
                 onSuccess = { beerBrand ->
                     updateState {
                         copy(
@@ -192,9 +188,7 @@ class ConsumeBeerViewModel @Inject constructor(
 
     private fun addBeer(name: String, brand: BeerBrand, style: BeerStyle) {
         launch {
-            val addBeerRequest =
-                AddBeerRequest(name, brand, style)
-            addBeerUseCase(addBeerRequest).onResult(
+            addBeerUseCase(name, brand, style).onResult(
                 onSuccess = { beerId ->
                     val newBeer = Drink.Beer(beerId.toInt(),
                         name = name,

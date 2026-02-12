@@ -17,9 +17,6 @@ import com.nghianguyen.drinks.usecase.AddConsumedDrinkUseCase
 import com.nghianguyen.drinks.usecase.AddWineBrandUseCase
 import com.nghianguyen.drinks.usecase.AddWineUseCase
 import com.nghianguyen.drinks.usecase.GetWinesByBrandUseCase
-import com.nghianguyen.drinks.usecase.request.AddBrandRequest
-import com.nghianguyen.drinks.usecase.request.AddWineRequest
-import com.nghianguyen.drinks.usecase.request.GetWinesByBrandRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -77,7 +74,7 @@ class ConsumeWineViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .flatMapLatest { brand ->
                     brand?.let {
-                        getWinesByBrandUseCase(GetWinesByBrandRequest(it))
+                        getWinesByBrandUseCase(it)
                     } ?:flowOf(Ok(emptyList()))
                 }.collect { winesByBrandResult ->
                     winesByBrandResult.onResult(
@@ -167,7 +164,7 @@ class ConsumeWineViewModel @Inject constructor(
 
     private fun addWineBrand(name: String) {
         launch {
-            addWineBrandUseCase(AddBrandRequest(name)).onResult(
+            addWineBrandUseCase(name).onResult(
                 onSuccess = { wineBrand ->
                     updateState {
                         copy(
@@ -199,7 +196,7 @@ class ConsumeWineViewModel @Inject constructor(
 
     private fun addWine(name: String, brand: WineBrand, style: WineStyle) {
         launch {
-            addWineUseCase(AddWineRequest(name, brand, style))
+            addWineUseCase(name, brand, style)
                 .onResult(
                     onSuccess = { wineId ->
                         val newWine = Drink.Wine(

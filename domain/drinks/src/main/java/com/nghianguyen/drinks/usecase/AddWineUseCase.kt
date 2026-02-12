@@ -1,10 +1,13 @@
 package com.nghianguyen.drinks.usecase
 
 import android.util.Log
+import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import com.nghianguyen.drinks.model.LocalDataError
+import com.nghianguyen.drinks.model.Error
+import com.nghianguyen.drinks.model.ValidationError
+import com.nghianguyen.drinks.model.wine.WineBrand
+import com.nghianguyen.drinks.model.wine.WineStyle
 import com.nghianguyen.drinks.repository.WineRepository
-import com.nghianguyen.drinks.usecase.request.AddWineRequest
 import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
 
@@ -12,12 +15,17 @@ import javax.inject.Inject
 class AddWineUseCase @Inject constructor(
     private val wineRepository: WineRepository
 ) {
-    suspend operator fun invoke(request: AddWineRequest): Result<Long, LocalDataError> {
-        Log.d("AddWineUseCase", request.toString())
+    suspend operator fun invoke(
+        name: String,
+        wineBrand: WineBrand,
+        wineStyle: WineStyle
+    ): Result<Long, Error> {
+        Log.d("AddWineUseCase", "$name - $wineBrand - $wineStyle")
+        if (name.isBlank()) {
+            return Err(ValidationError.INVALID_INPUT)
+        }
         return wineRepository.addWine(
-            request.name,
-            request.wineBrand.id,
-            request.wineStyle.id
+            name, wineBrand.id, wineStyle.id
         )
     }
 }

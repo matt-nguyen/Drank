@@ -1,8 +1,8 @@
 package com.nghianguyen.drinks
 
 import com.github.michaelbull.result.Result
-import com.nghianguyen.drinks.model.LocalDataError
 import com.nghianguyen.drinks.model.Drink
+import com.nghianguyen.drinks.model.Error
 import com.nghianguyen.drinks.repository.CocktailRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -10,7 +10,7 @@ import javax.inject.Inject
 class CocktailRepositoryImpl @Inject constructor(
     private val localDataSource: CocktailLocalDataSource
 ): CocktailRepository {
-    override fun getCocktailsByLiquor(liquorId: Int): Flow<Result<List<Drink.Cocktail>, LocalDataError>> {
+    override fun getCocktailsByLiquor(liquorId: Int): Flow<Result<List<Drink.Cocktail>, Error>> {
         require(liquorId > 0) {
             "liquorId must be > 0: $liquorId"
         }
@@ -20,7 +20,7 @@ class CocktailRepositoryImpl @Inject constructor(
     override suspend fun addCocktail(
         name: String,
         liquorId: Int
-    ): Result<Long, LocalDataError> {
+    ): Result<Long, Error> {
         require(name.isNotEmpty() && name.isNotBlank()) {
             "name should not be empty nor blank: $name"
         }

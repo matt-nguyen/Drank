@@ -20,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getConsumedDrinksByDateUseCase: GetConsumedDrinksByDateUseCase,
+    private val drinkCooldown: DrinkCooldown,
     private val resourcesHelper: ResourcesHelper
 ) : BaseViewModel<HomeState, HomeAction, HomeEvent>() {
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -41,9 +42,13 @@ class HomeViewModel @Inject constructor(
                     getConsumedDrinksByDateUseCase(selected)
                 }
                 .collect { result ->
-                    handleResult(
-                        result,
-                        { consumedDrinks ->
+                    result.onResult(
+                        onSuccess = {
+                                consumedDrinks ->
+
+                            if (consumedDrinks.size == uiState.value.consumedDrinks.size + 1) {
+                                handleAction(HomeAction.StartCooldown)
+                            }
 
                             val drinkDateText =
                                 if (selectedDate.value.isToday()) resourcesHelper.getString(R.string.label_today)
@@ -59,8 +64,17 @@ class HomeViewModel @Inject constructor(
                                 )
                             }
                         },
-                        {}
+                        onFailure = {
+
+                        }
                     )
+                }
+        }
+
+        launch {
+            drinkCooldown.timeLeft
+                .collect { timeLeftMillis ->
+                    Log.d("ASDF", "timeLeft: ${timeLeftMillis / 1000} seconds")
                 }
         }
     }
@@ -75,8 +89,15 @@ class HomeViewModel @Inject constructor(
                 HomeAction.PrevDate -> {
                     selectedDate.update { it.minusDays(1) }
                 }
+                HomeAction.StartCooldown -> {
+                    drinkCooldown.startCooldown()
+                }
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
     }
 }
 
